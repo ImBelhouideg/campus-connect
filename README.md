@@ -1,6 +1,6 @@
-# Campus Incidents — démo
+# Campus Connect — démo
 
-API de gestion des pannes et incidents d'un campus : **Express + TypeScript + Prisma + PostgreSQL**.
+API de gestion des pannes d'un campus : **Express + TypeScript + Prisma + PostgreSQL**.
 
 ## Architecture (en couches)
 
