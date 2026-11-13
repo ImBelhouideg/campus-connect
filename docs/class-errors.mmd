@@ -1,0 +1,41 @@
+classDiagram
+    direction TB
+
+    class Error {
+        <<JavaScript>>
+    }
+    class AppError {
+        +String message
+        +int status
+        +String code
+    }
+    class ValidationError {
+        status 400
+    }
+    class UnauthorizedError {
+        status 401
+    }
+    class ForbiddenError {
+        status 403
+    }
+    class NotFoundError {
+        status 404
+    }
+    class InvalidTransitionError {
+        status 409
+        levee par les etats du Ticket
+    }
+    class errorHandler {
+        <<middleware>>
+        ZodError devient 400
+        AppError devient son status
+        autre erreur devient 500
+    }
+
+    Error <|-- AppError
+    AppError <|-- ValidationError
+    AppError <|-- UnauthorizedError
+    AppError <|-- ForbiddenError
+    AppError <|-- NotFoundError
+    AppError <|-- InvalidTransitionError
+    errorHandler ..> AppError : traduit en reponse JSON

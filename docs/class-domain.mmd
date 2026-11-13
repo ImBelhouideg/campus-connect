@@ -1,0 +1,92 @@
+classDiagram
+    direction TB
+
+    class Ticket {
+        +String id
+        +String title
+        +String description
+        +String locationId
+        +String reporterId
+        +Date createdAt
+        +String categoryId
+        +Priority priority
+        +String technicianId
+        +Date resolvedAt
+        -TicketState state
+        +status() TicketStatus
+        +create(input)$ Ticket
+        +rehydrate(snapshot)$ Ticket
+        +qualify(data)
+        +reject()
+        +assign(technicianId)
+        +start()
+        +resolve()
+        +close()
+        +reopen()
+        +setState(state)
+        +toSnapshot() TicketSnapshot
+    }
+
+    class TicketState {
+        <<interface>>
+        +status TicketStatus
+        +qualify(ticket, data)
+        +reject(ticket)
+        +assign(ticket, technicianId)
+        +start(ticket)
+        +resolve(ticket)
+        +close(ticket)
+        +reopen(ticket)
+    }
+
+    class BaseState {
+        <<abstract>>
+    }
+
+    class NewState
+    class QualifiedState
+    class AssignedState
+    class InProgressState
+    class ResolvedState
+    class ClosedState
+    class RejectedState
+
+    Ticket "1" o-- "1" TicketState : etat courant
+    TicketState <|.. BaseState
+    BaseState <|-- NewState
+    BaseState <|-- QualifiedState
+    BaseState <|-- AssignedState
+    BaseState <|-- InProgressState
+    BaseState <|-- ResolvedState
+    BaseState <|-- ClosedState
+    BaseState <|-- RejectedState
+
+    note for BaseState "Pattern State<br/>BaseState refuse toute transition (erreur 409).<br/>Chaque etat redefinit seulement ses transitions valides<br/>et cree l'etat suivant via ticket.setState().<br/>stateFromStatus() reconstruit l'etat depuis la base."
+
+    class AssignmentStrategy {
+        <<interface>>
+        +name string
+        +pickTechnician(ticket, technicians) Technician
+    }
+
+    class ManualStrategy {
+        -technicianId string
+    }
+    class LeastLoadedStrategy
+    class CategorySkillStrategy
+
+    class Technician {
+        <<type>>
+        +String id
+        +String name
+        +String[] skills
+        +int openTickets
+    }
+
+    AssignmentStrategy <|.. ManualStrategy
+    AssignmentStrategy <|.. LeastLoadedStrategy
+    AssignmentStrategy <|.. CategorySkillStrategy
+    AssignmentStrategy ..> Ticket : lit la categorie
+    AssignmentStrategy ..> Technician : choisit parmi
+
+    note for AssignmentStrategy "Pattern Strategy<br/>buildStrategy(name) retourne l'implementation<br/>demandee : manual, least-loaded ou category."

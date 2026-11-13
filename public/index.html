@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Campus Incidents</title>
+<style>
+:root{--bg:#f4f6f9;--card:#fff;--ink:#1c2430;--mute:#6b7685;--line:#e2e6ec;--pri:#2457d6;--bad:#c0392b}
+@media(prefers-color-scheme:dark){:root{--bg:#12161c;--card:#1b212a;--ink:#e8ecf1;--mute:#93a0b0;--line:#2a323d;--pri:#6b94ff;--bad:#ff7a6b}}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.45 system-ui,"Segoe UI",sans-serif;background:var(--bg);color:var(--ink)}
+header{display:flex;gap:12px;align-items:center;padding:12px 20px;background:var(--card);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5;flex-wrap:wrap}
+header h1{font-size:18px;margin:0;flex:1}
+main{display:grid;grid-template-columns:minmax(280px,360px) 1fr;gap:16px;padding:16px 20px;max-width:1200px;margin:auto}
+@media(max-width:860px){main{grid-template-columns:1fr}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:16px}
+h2{font-size:16px;margin:0 0 10px}h3{font-size:13px;margin:14px 0 6px;color:var(--mute);text-transform:uppercase;letter-spacing:.04em}
+.head{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px}.head h2{margin:0}
+input,select,textarea,button{font:inherit;color:inherit;border:1px solid var(--line);border-radius:8px;padding:7px 10px;background:var(--bg)}
+textarea{width:100%;min-height:70px;resize:vertical}input{min-width:0}
+.f{display:grid;gap:8px}.f label{font-size:13px;color:var(--mute)}.f input,.f select{width:100%}
+button{background:var(--pri);color:#fff;border-color:var(--pri);cursor:pointer;font-weight:600}
+button.ghost{background:transparent;color:var(--ink);border-color:var(--line)}
+button:hover{opacity:.9}
+.act{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.act input{flex:1;min-width:140px}
+.row{padding:10px;border:1px solid var(--line);border-radius:10px;margin-bottom:8px;cursor:pointer}
+.row:hover,.row.sel{border-color:var(--pri)}
+.row .t{font-weight:600}.mute{color:var(--mute);font-size:13px}
+.badge{display:inline-block;padding:1px 9px;border-radius:99px;font-size:12px;font-weight:600;color:var(--c,var(--mute));border:1px solid currentColor;background:color-mix(in srgb,var(--c,gray) 14%,transparent);margin-right:4px}
+.s-NEW{--c:#2457d6}.s-QUALIFIED{--c:#7b4fd0}.s-ASSIGNED{--c:#c77700}.s-IN_PROGRESS{--c:#d9560b}.s-RESOLVED{--c:#1a8f5a}.s-CLOSED{--c:#6b7685}.s-REJECTED{--c:#c0392b}
+.p-URGENT{--c:#c0392b}.p-HIGH{--c:#d9560b}.p-MEDIUM{--c:#5b6b85}.p-LOW{--c:#8a95a5}
+.kpis{display:grid;grid-template-columns:1fr 1fr;gap:8px}.kpi{border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+.kpi b{font-size:22px;display:block}.kpi span{font-size:12px;color:var(--mute)}
+.bar{display:grid;grid-template-columns:110px 1fr 24px;gap:8px;align-items:center;font-size:13px;margin:3px 0}
+.bar i{display:block;height:8px;border-radius:4px;background:var(--pri)}
+ul.tl{list-style:none;padding:0;margin:8px 0 0;border-left:2px solid var(--line)}ul.tl li{padding:0 0 10px 12px}
+.n{padding:6px 0;border-bottom:1px solid var(--line);font-size:14px}.n:last-child{border:0}
+#toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#1c2430;color:#fff;padding:10px 16px;border-radius:10px;opacity:0;pointer-events:none;transition:opacity .2s}
+#toast.show{opacity:1}#toast.bad{background:var(--bad)}
+</style>
+</head>
+<body>
+<header>
+  <h1>🛠️ Campus Incidents</h1>
+  <label class="mute" for="user">Connecté en tant que</label>
+  <select id="user"></select>
+  <button class="ghost" data-act="refresh">↻ Actualiser</button>
+</header>
+<main>
+  <section id="side"></section>
+  <section>
+    <div id="detail"></div>
+    <div class="card">
+      <div class="head"><h2>Tickets</h2><select id="filter"></select></div>
+      <div id="list"></div>
+    </div>
+  </section>
+</main>
+<div id="toast"></div>
+
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const ST = {NEW:'Nouveau',QUALIFIED:'Qualifié',ASSIGNED:'Assigné',IN_PROGRESS:'En cours',RESOLVED:'Résolu',CLOSED:'Clôturé',REJECTED:'Rejeté'};
+const PR = {LOW:'Basse',MEDIUM:'Moyenne',HIGH:'Haute',URGENT:'Urgente'};
+const EV = {TicketCreated:'Signalé',TicketQualified:'Qualifié',TicketRejected:'Rejeté',TicketAssigned:'Assigné',TicketStarted:'Intervention démarrée',TicketResolved:'Résolu',TicketClosed:'Clôturé',TicketReopened:'Rouvert'};
+const U = [
+  {id:'u-student',name:'Sara',label:'Sara — étudiante (signaleur)',role:'REPORTER'},
+  {id:'u-dispatcher',name:'Karim',label:'Karim — dispatcher',role:'DISPATCHER'},
+  {id:'u-tech-elec',name:'Youssef',label:'Youssef — technicien élec.',role:'TECHNICIAN'},
+  {id:'u-tech-it',name:'Nadia',label:'Nadia — technicienne IT',role:'TECHNICIAN'},
+  {id:'u-admin',name:'Admin',label:'Admin',role:'ADMIN'}
+];
+const nameOf = id => U.find(u => u.id === id)?.name || id;
+const opts = (arr, sel) => arr.map(([v, l]) => `<option value="${esc(v)}"${v === sel ? ' selected' : ''}>${esc(l)}</option>`).join('');
+const fmt = d => new Date(d).toLocaleString('fr-FR', {day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
+
+let me, role, sel = null, filter = '', tickets = [], notifs = [], dash = null;
+let ref = {locations: [], categories: [], technicians: []};
+const isDisp = () => role === 'DISPATCHER' || role === 'ADMIN';
+
+async function api(path, o = {}) {
+  const r = await fetch('/api' + path, {
+    method: o.method || 'GET',
+    headers: {'content-type': 'application/json', 'x-user-id': me},
+    body: o.body ? JSON.stringify(o.body) : undefined
+  });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) {
+    const det = j.error?.details?.map(i => i.path.join('.') + ' : ' + i.message).join(' ; ');
+    throw new Error(det || j.error?.message || r.statusText);
+  }
+  return j;
+}
+
+function toast(m, bad) {
+  const t = $('#toast'); t.textContent = m; t.className = 'show' + (bad ? ' bad' : '');
+  clearTimeout(toast.t); toast.t = setTimeout(() => t.className = '', 3500);
+}
+
+const badge = (cls, txt) => `<span class="badge ${cls}">${esc(txt)}</span>`;
+const locLabel = id => { const l = ref.locations.find(x => x.id === id); return l ? `${l.building} · ${l.room}` : id; };
+
+async function setUser(id) {
+  me = id; role = U.find(u => u.id === id).role; sel = null; filter = '';
+  try { localStorage.setItem('uid', id); } catch {}
+  $('#user').value = id; $('#filter').value = ''; $('#detail').innerHTML = '';
+  try {
+    ref.locations = await api('/locations');
+    ref.categories = await api('/categories');
+    ref.technicians = isDisp() ? await api('/technicians') : [];
+    renderPanel(); await refresh();
+  } catch (e) { toast(e.message, true); }
+}
+
+async function refresh() {
+  const q = filter ? `?status=${filter}` : '';
+  [tickets, notifs] = await Promise.all([api('/tickets' + q), api('/notifications')]);
+  dash = isDisp() ? await api('/dashboard') : null;
+  renderList(); renderNotifs(); renderDash();
+}
+
+function renderPanel() {
+  let first = '';
+  if (role === 'REPORTER') {
+    first = `<div class="card"><h2>Signaler une panne</h2><div class="f">
+      <label>Titre</label><input id="c-title" placeholder="Ex : Projecteur en panne">
+      <label>Localisation</label><select id="c-loc">${opts(ref.locations.map(l => [l.id, `${l.building} · ${l.floor} · ${l.room}`]))}</select>
+      <label>Description</label><textarea id="c-desc" placeholder="Décrivez le problème"></textarea>
+      <button data-act="create">Envoyer le signalement</button></div></div>`;
+  } else if (isDisp()) {
+    first = `<div class="card" id="dash"></div>`;
+  } else {
+    first = `<div class="card"><h2>Mes interventions</h2><p class="mute">Vous voyez uniquement les tickets qui vous sont assignés. Ouvrez-en un pour démarrer ou résoudre l'intervention.</p></div>`;
+  }
+  $('#side').innerHTML = first + `<div class="card"><h2>Notifications</h2><div id="notifs"></div></div>`;
+}
+
+function renderDash() {
+  const el = $('#dash'); if (!el || !dash) return;
+  const kpi = (l, v) => `<div class="kpi"><b>${v}</b><span>${l}</span></div>`;
+  const bars = rows => { const m = Math.max(1, ...rows.map(r => r[1])); return rows.map(([l, v]) => `<div class="bar"><span>${esc(l)}</span><i style="width:${v / m * 100}%"></i><b>${v}</b></div>`).join(''); };
+  el.innerHTML = `<h2>Tableau de bord</h2><div class="kpis">
+    ${kpi('Tickets', dash.total)}${kpi('Ouverts', dash.open)}
+    ${kpi('Délai moyen', dash.avgResolutionHours == null ? '—' : dash.avgResolutionHours + ' h')}
+    ${kpi('Satisfaction', dash.avgRating == null ? '—' : dash.avgRating + ' / 5')}</div>
+    <h3>Par statut</h3>${bars(Object.entries(dash.byStatus).map(([k, v]) => [ST[k], v]))}
+    <h3>Par catégorie</h3>${bars(dash.byCategory.map(c => [c.category, c.count]))}`;
+}
+
+function renderNotifs() {
+  const el = $('#notifs'); if (!el) return;
+  el.innerHTML = notifs.length ? notifs.slice(0, 8).map(n => `<div class="n">${esc(n.message)}<div class="mute">${fmt(n.createdAt)}</div></div>`).join('') : '<p class="mute">Aucune notification.</p>';
+}
+
+function renderList() {
+  $('#list').innerHTML = tickets.length ? tickets.map(t => `
+    <div class="row${t.id === sel ? ' sel' : ''}" data-act="open" data-id="${t.id}">
+      <div class="t">${esc(t.title)}</div>
+      <div>${badge('s-' + t.status, ST[t.status])}${badge('p-' + t.priority, PR[t.priority])}</div>
+      <div class="mute">${esc(locLabel(t.locationId))} · ${fmt(t.createdAt)}${t.technicianId ? ' · ' + esc(nameOf(t.technicianId)) : ''}</div>
+    </div>`).join('') : '<p class="mute">Aucun ticket.</p>';
+}
+
+async function openTicket(id) {
+  sel = id;
+  try { renderDetail(await api('/tickets/' + id)); renderList(); } catch (e) { toast(e.message, true); }
+}
+
+function renderDetail(t) {
+  const cat = ref.categories.find(c => c.id === t.categoryId), st = t.status;
+  let a = '';
+  if (isDisp() && st === 'NEW') a = `<div class="act">
+    <select id="q-pri">${opts(Object.entries(PR), 'MEDIUM')}</select>
+    <select id="q-cat">${opts(ref.categories.map(c => [c.id, c.name]))}</select>
+    <button data-act="qualify">Qualifier</button><button class="ghost" data-act="reject">Rejeter</button></div>`;
+  if (isDisp() && st === 'QUALIFIED') a = `<div class="act">
+    <select id="a-strat">${opts([['category', 'Par compétence'], ['least-loaded', 'Moins chargé'], ['manual', 'Manuel']])}</select>
+    <select id="a-tech">${opts(ref.technicians.map(x => [x.id, x.name]))}</select>
+    <button data-act="assign">Affecter</button><button class="ghost" data-act="reject">Rejeter</button></div>
+    <p class="mute">Le technicien choisi n'est utilisé qu'en mode manuel.</p>`;
+  if (role === 'TECHNICIAN' && me === t.technicianId) {
+    if (st === 'ASSIGNED') a = `<div class="act"><button data-act="start">Démarrer l'intervention</button></div>`;
+    if (st === 'IN_PROGRESS') a = `<div class="act"><input id="r-comment" placeholder="Commentaire de résolution"><button data-act="resolve">Marquer résolu</button></div>`;
+  }
+  if (role === 'REPORTER' && st === 'RESOLVED') a = `<div class="act">
+    <select id="f-rate">${opts([[5, '5 ★'], [4, '4 ★'], [3, '3 ★'], [2, '2 ★'], [1, '1 ★']])}</select>
+    <input id="f-comment" placeholder="Commentaire (optionnel)">
+    <button data-act="feedback">Confirmer et noter</button><button class="ghost" data-act="reopen">Rouvrir</button></div>`;
+  const tl = t.events.map(e => `<li><b>${EV[e.type] || e.type}</b> <span class="mute">par ${esc(nameOf(e.actorId))} · ${fmt(e.at)}</span>
+    ${e.data?.reason ? `<div class="mute">Motif : ${esc(e.data.reason)}</div>` : ''}
+    ${e.data?.comment ? `<div class="mute">« ${esc(e.data.comment)} »</div>` : ''}
+    ${e.data?.strategy ? `<div class="mute">Affectation « ${esc(e.data.strategy)} » → ${esc(e.data.technicianName)}</div>` : ''}</li>`).join('');
+  $('#detail').innerHTML = `<div class="card">
+    <div class="head"><h2>${esc(t.title)}</h2><button class="ghost" data-act="close">✕</button></div>
+    <div>${badge('s-' + st, ST[st])}${badge('p-' + t.priority, PR[t.priority])}${cat ? badge('', cat.name) : ''}</div>
+    <p>${esc(t.description)}</p>
+    <p class="mute">📍 ${esc(locLabel(t.locationId))} · Signalé par ${esc(nameOf(t.reporterId))}${t.technicianId ? ' · Technicien : ' + esc(nameOf(t.technicianId)) : ''}</p>
+    ${t.feedback ? `<p>Note : ${'★'.repeat(t.feedback.rating)}${t.feedback.comment ? ' — ' + esc(t.feedback.comment) : ''}</p>` : ''}
+    ${a}<h3>Historique</h3><ul class="tl">${tl}</ul></div>`;
+}
+
+async function act(id, path, body, method = 'POST') {
+  try { await api(`/tickets/${id}/${path}`, {method, body}); await refresh(); await openTicket(id); }
+  catch (e) { toast(e.message, true); }
+}
+
+async function create() {
+  const body = {title: $('#c-title').value, description: $('#c-desc').value, locationId: $('#c-loc').value};
+  try {
+    const t = await api('/tickets', {method: 'POST', body});
+    $('#c-title').value = ''; $('#c-desc').value = '';
+    toast('Signalement envoyé'); await refresh(); openTicket(t.id);
+  } catch (e) { toast(e.message, true); }
+}
+
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-act]'); if (!b) return;
+  const a = b.dataset.act, id = b.dataset.id || sel;
+  if (a === 'open') return openTicket(id);
+  if (a === 'close') { sel = null; $('#detail').innerHTML = ''; return renderList(); }
+  if (a === 'refresh') return refresh().catch(err => toast(err.message, true));
+  if (a === 'create') return create();
+  if (a === 'qualify') return act(id, 'qualify', {priority: $('#q-pri').value, categoryId: $('#q-cat').value}, 'PATCH');
+  if (a === 'reject') { const r = prompt('Motif du rejet ?'); return r && act(id, 'reject', {reason: r}); }
+  if (a === 'assign') { const s = $('#a-strat').value; return act(id, 'assign', {strategy: s, technicianId: s === 'manual' ? $('#a-tech').value : undefined}); }
+  if (a === 'start') return act(id, 'start');
+  if (a === 'resolve') return act(id, 'resolve', {comment: $('#r-comment').value || undefined});
+  if (a === 'feedback') return act(id, 'feedback', {rating: Number($('#f-rate').value), comment: $('#f-comment').value || undefined});
+  if (a === 'reopen') { const r = prompt('Pourquoi rouvrir ce ticket ?'); return r && act(id, 'reopen', {reason: r}); }
+});
+
+$('#user').innerHTML = U.map(u => `<option value="${u.id}">${esc(u.label)}</option>`).join('');
+$('#user').onchange = e => setUser(e.target.value);
+$('#filter').innerHTML = opts([['', 'Tous les statuts'], ...Object.entries(ST)]);
+$('#filter').onchange = e => { filter = e.target.value; refresh().catch(err => toast(err.message, true)); };
+
+let saved = null; try { saved = localStorage.getItem('uid'); } catch {}
+setUser(U.some(u => u.id === saved) ? saved : 'u-student');
+setInterval(() => { if (me) refresh().catch(() => {}); }, 5000);
+</script>
+</body>
+</html>

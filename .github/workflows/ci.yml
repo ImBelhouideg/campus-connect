@@ -1,0 +1,157 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # 1. Types + tests : mêmes tests avec les repositories en mémoire PUIS avec PostgreSQL
+  test:
+    name: Types et tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: campus
+          POSTGRES_PASSWORD: campus
+          POSTGRES_DB: campus
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U campus -d campus"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://campus:campus@localhost:5432/campus?schema=public
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx prisma generate
+      - name: Vérification des types
+        run: npm run typecheck
+      - name: Tests (repositories en mémoire)
+        run: npm test
+      - name: Création du schéma et des données de démo (PostgreSQL)
+        run: |
+          npx prisma db push --skip-generate
+          npm run db:seed
+      - name: Tests (mêmes tests, repositories Prisma + PostgreSQL)
+        run: npm test
+        env:
+          DATA_MODE: prisma
+
+  # 2. Sécurité du code et des dépendances
+  security:
+    name: Sécurité (dépendances et secrets)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # Mêmes drapeaux que l'installation du Dockerfile : on audite ce qui est réellement livré.
+      - name: Audit des dépendances livrées (bloquant si HIGH ou CRITICAL)
+        run: npm audit --omit=dev --omit=optional --audit-level=high
+      # Rapport complet, informatif : inclut l'outillage de développement (non livré).
+      - name: Audit complet (informatif)
+        run: npm audit || true
+      - name: Détection de secrets (gitleaks)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # 3. Image Docker : build, scan, test du conteneur, publication
+  docker:
+    name: Image Docker (build, scan, test, publication)
+    runs-on: ubuntu-latest
+    needs: [test, security]
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build de l'image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: campus-incidents:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Taille de l'image
+        run: |
+          SIZE=$(docker image inspect campus-incidents:ci --format '{{.Size}}')
+          echo "### Image Docker" >> "$GITHUB_STEP_SUMMARY"
+          echo "Taille : $((SIZE / 1024 / 1024)) Mo" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Scan Trivy (bloquant si faille CRITICAL)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: campus-incidents:ci
+          severity: CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+
+      - name: Scan Trivy (rapport HIGH, informatif)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: campus-incidents:ci
+          severity: HIGH
+          ignore-unfixed: true
+          exit-code: "0"
+
+      - name: Test de fumée du conteneur
+        run: |
+          docker run -d --name app -p 3000:3000 -e DATA_MODE=memory campus-incidents:ci
+          for i in $(seq 1 20); do curl -sf http://localhost:3000/api/health && break || sleep 1; done
+          curl -sf http://localhost:3000/api/health
+          curl -sf http://localhost:3000/ | grep -q "Campus Incidents"
+          test "$(docker exec app id -u)" != "0"   # le conteneur ne tourne pas en root
+          docker logs app
+
+      - name: Connexion au registre GHCR
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Métadonnées de l'image
+        id: meta
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=raw,value=latest
+            type=sha
+
+      - name: Publication de l'image
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha

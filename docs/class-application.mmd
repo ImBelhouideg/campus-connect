@@ -1,0 +1,146 @@
+classDiagram
+    direction LR
+
+    class createApp {
+        <<function>>
+        +createApp(container) Express
+        authenticate, requireRole
+        errorHandler, static public
+    }
+    class ticketRoutes {
+        <<controller>>
+        +ticketRoutes(service) Router
+        validation zod, codes HTTP
+    }
+    class Container {
+        <<interface>>
+        +mode DataMode
+        +directory DirectoryRepository
+        +notifications NotificationRepository
+        +tickets TicketService
+        +dashboard DashboardService
+        +shutdown()
+    }
+    class buildContainer {
+        <<composition root>>
+        +buildContainer(mode, options) Container
+        choisit memory ou prisma
+        branche les abonnes de l'EventBus
+    }
+
+    class TicketService {
+        +create(actor, dto) Ticket
+        +list(actor, status) Ticket[]
+        +get(actor, id) TicketDetails
+        +qualify(actor, id, dto) Ticket
+        +reject(actor, id, reason) Ticket
+        +assign(actor, id, dto) Ticket
+        +start(actor, id) Ticket
+        +resolve(actor, id, comment) Ticket
+        +submitFeedback(actor, id, dto) Ticket
+        +reopen(actor, id, reason) Ticket
+    }
+    class DashboardService {
+        +summary()
+    }
+    class Ticket
+    class AssignmentStrategy {
+        <<interface>>
+    }
+
+    class TicketRepository {
+        <<interface>>
+        +save(ticket)
+        +findById(id) Ticket
+        +findAll(filter) Ticket[]
+        +addEvent(event)
+        +listEvents(ticketId)
+        +saveFeedback(feedback)
+        +findFeedback(ticketId)
+        +listFeedback()
+    }
+    class InMemoryTicketRepository
+    class PrismaTicketRepository
+
+    class DirectoryRepository {
+        <<interface>>
+        +findUser(id)
+        +listByRole(role)
+        +listLocations()
+        +findLocation(id)
+        +listCategories()
+        +findCategory(id)
+    }
+    class InMemoryDirectoryRepository
+    class PrismaDirectoryRepository
+
+    class NotificationRepository {
+        <<interface>>
+        +add(userId, message)
+        +listFor(userId)
+    }
+    class InMemoryNotificationRepository
+    class PrismaNotificationRepository
+    class PrismaClient {
+        <<Prisma>>
+        PostgreSQL
+    }
+
+    class EventBus {
+        +subscribe(type, handler)
+        +publish(event) DomainEvent
+    }
+    class DomainEvent {
+        <<type>>
+        +type EventType
+        +ticketId string
+        +ticketTitle string
+        +actorId string
+        +reporterId string
+        +technicianId string
+        +data object
+        +at Date
+    }
+    class NotificationService {
+        +handle(event)
+    }
+    class NotificationChannel {
+        <<interface>>
+        +name string
+        +send(userId, message)
+    }
+    class InAppChannel
+    class EmailConsoleChannel
+
+    createApp --> Container : utilise
+    createApp --> ticketRoutes : monte sur /tickets
+    ticketRoutes --> TicketService
+    buildContainer ..> Container : cree
+
+    TicketService --> TicketRepository
+    TicketService --> DirectoryRepository
+    TicketService --> EventBus : publie
+    TicketService ..> Ticket : manipule
+    TicketService ..> AssignmentStrategy : utilise
+    DashboardService --> TicketRepository
+    DashboardService --> DirectoryRepository
+
+    TicketRepository <|.. InMemoryTicketRepository
+    TicketRepository <|.. PrismaTicketRepository
+    DirectoryRepository <|.. InMemoryDirectoryRepository
+    DirectoryRepository <|.. PrismaDirectoryRepository
+    NotificationRepository <|.. InMemoryNotificationRepository
+    NotificationRepository <|.. PrismaNotificationRepository
+    PrismaTicketRepository --> PrismaClient
+    PrismaDirectoryRepository --> PrismaClient
+    PrismaNotificationRepository --> PrismaClient
+
+    EventBus ..> DomainEvent : transporte
+    EventBus ..> TicketRepository : abonne 1, historique (addEvent)
+    EventBus ..> NotificationService : abonne 2
+    NotificationService --> DirectoryRepository
+    NotificationService "1" --> "*" NotificationChannel
+    NotificationChannel <|.. InAppChannel
+    NotificationChannel <|.. EmailConsoleChannel
+    InAppChannel --> NotificationRepository
+    EmailConsoleChannel --> DirectoryRepository

@@ -1,0 +1,48 @@
+# Développement (base seule) : docker compose up -d        (npm run db:up)
+# Démo complète (app + base) : docker compose --profile full up --build
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: campus
+      POSTGRES_PASSWORD: campus
+      POSTGRES_DB: campus
+    ports:
+      - "5432:5432"
+    volumes:
+      - campus_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U campus -d campus"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Tâche unique : crée les tables et charge les données de démo
+  migrate:
+    profiles: ["full"]
+    build:
+      context: .
+      target: build
+    command: sh -c "npx prisma db push --skip-generate && npx tsx prisma/seed.ts"
+    environment:
+      DATABASE_URL: "postgresql://campus:campus@db:5432/campus?schema=public"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  app:
+    profiles: ["full"]
+    build: .
+    image: campus-incidents:local
+    ports:
+      - "3000:3000"
+    environment:
+      DATA_MODE: prisma
+      PORT: "3000"
+      DATABASE_URL: "postgresql://campus:campus@db:5432/campus?schema=public"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+volumes:
+  campus_pg:

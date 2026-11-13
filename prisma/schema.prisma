@@ -1,0 +1,112 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  REPORTER
+  DISPATCHER
+  TECHNICIAN
+  ADMIN
+}
+
+enum TicketStatus {
+  NEW
+  QUALIFIED
+  ASSIGNED
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+  REJECTED
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+model User {
+  id            String         @id
+  name          String
+  email         String         @unique
+  role          Role
+  skills        String[] // ids de catégories maîtrisées (techniciens)
+  reported      Ticket[]       @relation("Reporter")
+  assigned      Ticket[]       @relation("Assignee")
+  notifications Notification[]
+}
+
+model Location {
+  id       String   @id
+  building String
+  floor    String
+  room     String
+  tickets  Ticket[]
+}
+
+model Category {
+  id      String   @id
+  name    String   @unique
+  tickets Ticket[]
+}
+
+model Ticket {
+  id           String        @id
+  title        String
+  description  String
+  priority     Priority      @default(MEDIUM)
+  status       TicketStatus  @default(NEW)
+  locationId   String
+  categoryId   String?
+  reporterId   String
+  technicianId String?
+  createdAt    DateTime      @default(now())
+  resolvedAt   DateTime?
+
+  location   Location  @relation(fields: [locationId], references: [id])
+  category   Category? @relation(fields: [categoryId], references: [id])
+  reporter   User      @relation("Reporter", fields: [reporterId], references: [id])
+  technician User?     @relation("Assignee", fields: [technicianId], references: [id])
+  events     TicketEvent[]
+  feedback   Feedback?
+
+  @@index([status])
+}
+
+// Historique : sert aussi de source pour les statistiques
+model TicketEvent {
+  id       String   @id @default(uuid())
+  ticketId String
+  type     String
+  actorId  String
+  data     Json?
+  at       DateTime
+  ticket   Ticket   @relation(fields: [ticketId], references: [id])
+
+  @@index([ticketId])
+}
+
+model Feedback {
+  ticketId  String   @id
+  rating    Int
+  comment   String?
+  createdAt DateTime @default(now())
+  ticket    Ticket   @relation(fields: [ticketId], references: [id])
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  message   String
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+}
