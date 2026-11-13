@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import type { AddressInfo } from 'node:net';
 import { after, before, describe, test } from 'node:test';
 import { createApp } from '../app';
+<<<<<<< HEAD
 import { buildContainer, type Container, type DataMode } from '../container';
 import { Ticket } from '../modules/tickets/domain/ticket';
 import { LeastLoadedStrategy } from '../modules/tickets/strategies/assignment';
@@ -12,6 +13,13 @@ const MODE: DataMode = process.env.DATA_MODE === 'prisma' ? 'prisma' : 'memory';
 // Titre unique par exécution : une base persistante n'est pas vide au second passage.
 const RUN = Date.now().toString(36);
 
+=======
+import { buildContainer, type Container } from '../container';
+import { Ticket } from '../modules/tickets/domain/ticket';
+import { LeastLoadedStrategy } from '../modules/tickets/strategies/assignment';
+
+// Les tests tournent en mode « memory » : pas besoin de PostgreSQL.
+>>>>>>> 24f9b4eb547c871a340585b08d1b54778a7af3d1
 let container: Container;
 let close: () => Promise<void>;
 let base: string;
@@ -27,12 +35,17 @@ async function call(user: string | null, method: string, path: string, body?: un
 }
 
 before(async () => {
+<<<<<<< HEAD
   container = await buildContainer(MODE);
+=======
+  container = await buildContainer('memory');
+>>>>>>> 24f9b4eb547c871a340585b08d1b54778a7af3d1
   const server = createApp(container).listen(0);
   await new Promise<void>((resolve) => server.once('listening', () => resolve()));
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}/api`;
   close = () => new Promise<void>((resolve) => server.close(() => resolve()));
 });
+<<<<<<< HEAD
 after(async () => {
   await close();
   await container.shutdown(); // ferme la connexion PostgreSQL en mode prisma
@@ -46,6 +59,15 @@ describe('scénario principal de la démo', () => {
     // 1. L'étudiante signale une panne
     const created = await call('u-student', 'POST', '/tickets', {
       title,
+=======
+after(async () => close());
+
+describe('scénario principal de la démo', () => {
+  test('signalement → qualification → affectation → traitement → résolution → clôture', async () => {
+    // 1. L'étudiante signale une panne
+    const created = await call('u-student', 'POST', '/tickets', {
+      title: 'Projecteur en panne',
+>>>>>>> 24f9b4eb547c871a340585b08d1b54778a7af3d1
       description: 'Le projecteur de la salle 101 ne démarre plus',
       locationId: 'loc-a-101',
     });
@@ -55,7 +77,11 @@ describe('scénario principal de la démo', () => {
 
     // Le dispatcher a été notifié
     const dispatcherNotifs = await call('u-dispatcher', 'GET', '/notifications');
+<<<<<<< HEAD
     assert.ok(dispatcherNotifs.body.some((n: { message: string }) => n.message.includes(title)));
+=======
+    assert.ok(dispatcherNotifs.body.some((n: { message: string }) => n.message.includes('Projecteur en panne')));
+>>>>>>> 24f9b4eb547c871a340585b08d1b54778a7af3d1
 
     // 2. Qualification
     const qualified = await call('u-dispatcher', 'PATCH', `/tickets/${id}/qualify`, {
@@ -77,7 +103,11 @@ describe('scénario principal de la démo', () => {
 
     // La signaleuse est notifiée
     const studentNotifs = await call('u-student', 'GET', '/notifications');
+<<<<<<< HEAD
     assert.ok(studentNotifs.body.some((n: { message: string }) => n.message.includes(title) && n.message.includes('est résolu')));
+=======
+    assert.ok(studentNotifs.body.some((n: { message: string }) => n.message.includes('est résolu')));
+>>>>>>> 24f9b4eb547c871a340585b08d1b54778a7af3d1
 
     // 5. Retour de la signaleuse : clôture + note
     const closed = await call('u-student', 'POST', `/tickets/${id}/feedback`, { rating: 5, comment: 'Rapide !' });
@@ -94,8 +124,13 @@ describe('scénario principal de la démo', () => {
     // 6. Dashboard
     const dash = await call('u-dispatcher', 'GET', '/dashboard');
     assert.equal(dash.status, 200);
+<<<<<<< HEAD
     assert.equal(dash.body.byStatus.CLOSED, closedBefore + 1);
     assert.ok(dash.body.avgRating >= 1 && dash.body.avgRating <= 5);
+=======
+    assert.equal(dash.body.byStatus.CLOSED, 1);
+    assert.equal(dash.body.avgRating, 5);
+>>>>>>> 24f9b4eb547c871a340585b08d1b54778a7af3d1
   });
 
   test('une transition interdite est refusée par le pattern State (409)', async () => {

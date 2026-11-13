@@ -1,6 +1,12 @@
+<<<<<<< HEAD
 # Campus Incidents — démo
 
 API de gestion des pannes et incidents d'un campus : **Express + TypeScript + Prisma + PostgreSQL**.
+=======
+# Campus Connect — démo
+
+API de gestion des pannes d'un campus : **Express + TypeScript + Prisma + PostgreSQL**.
+>>>>>>> 24f9b4eb547c871a340585b08d1b54778a7af3d1
 
 ## Architecture (en couches)
 
@@ -24,6 +30,7 @@ Routes / Controller  →  Service  →  Domaine (Ticket + États)  →  Reposito
 
 ```bash
 npm install
+<<<<<<< HEAD
 npm start                       # mode « memory » par défaut → http://localhost:3000 (interface) et /api
 npm test                        # scénario complet, en mémoire
 ```
@@ -32,6 +39,12 @@ npm test                        # scénario complet, en mémoire
 > l'emporte sur `.env`. Bash : `DATA_MODE=memory npm start`. PowerShell : `$env:DATA_MODE="memory"; npm start`.
 > Sous PowerShell, `curl` est un alias de `Invoke-WebRequest` : utilisez `curl.exe` ou `Invoke-RestMethod`.
 
+=======
+DATA_MODE=memory npm start      # http://localhost:3000/api
+npm test                        # scénario complet, en mémoire
+```
+
+>>>>>>> 24f9b4eb547c871a340585b08d1b54778a7af3d1
 ## Avec PostgreSQL
 
 ```bash
@@ -43,6 +56,7 @@ npm run db:seed                 # utilisateurs, lieux, catégories de démo
 npm start
 ```
 
+<<<<<<< HEAD
 Les mêmes tests peuvent être rejoués contre PostgreSQL (base migrée et seedée) :
 `DATA_MODE=prisma npm test` (PowerShell : `$env:DATA_MODE="prisma"; npm test`).
 
@@ -74,6 +88,8 @@ Pas encore couvert : déploiement sur un cloud, supervision, infrastructure déc
 `docs/class-domain.mmd` (Ticket, états, stratégies), `docs/class-application.mmd` (services, repositories,
 bus d'événements, notifications, composition) et `docs/class-errors.mmd` (erreurs), avec leurs rendus `.png` / `.svg`.
 
+=======
+>>>>>>> 24f9b4eb547c871a340585b08d1b54778a7af3d1
 ## Authentification de démo
 
 Pas de login : l'utilisateur est désigné par l'en-tête `x-user-id` (à remplacer par SSO/JWT).

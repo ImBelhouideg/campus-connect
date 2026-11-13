@@ -3,7 +3,10 @@
     "target": "ES2022",
     "module": "commonjs",
     "moduleResolution": "node",
+<<<<<<< HEAD
     "ignoreDeprecations": "6.0",
+=======
+>>>>>>> 24f9b4eb547c871a340585b08d1b54778a7af3d1
     "outDir": "dist",
     "strict": true,
     "esModuleInterop": true,
