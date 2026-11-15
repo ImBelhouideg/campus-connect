@@ -1,18 +1,29 @@
-<<<<<<< HEAD
 import path from 'node:path';
-=======
->>>>>>> 24f9b4eb547c871a340585b08d1b54778a7af3d1
 import express, { Router } from 'express';
 import type { Container } from './container';
 import { ticketRoutes } from './modules/tickets/ticket.routes';
-import { asyncHandler, authenticate, currentUser, errorHandler, notFoundHandler, requireRole } from './shared/middlewares';
-<<<<<<< HEAD
-=======
-import path from 'node:path';
->>>>>>> 24f9b4eb547c871a340585b08d1b54778a7af3d1
+import { metricsMiddleware, register } from './observability/metrics';
+import {
+  asyncHandler,
+  authenticate,
+  currentUser,
+  errorHandler,
+  notFoundHandler,
+  requireRole,
+} from './shared/middlewares';
 
 export function createApp(c: Container) {
   const app = express();
+  app.use(metricsMiddleware);
+
+  app.get('/metrics', async (_req, res, next) => {
+  try {
+    res.set('Content-Type', register.contentType);
+    res.end(await register.metrics());
+  } catch (error) {
+    next(error);
+  }
+  });
   app.use(express.json());
 
   app.get('/api/health', (_req, res) => res.json({ status: 'ok', mode: c.mode }));
@@ -39,20 +50,16 @@ export function createApp(c: Container) {
   }));
 
   app.use('/api', api);
-<<<<<<< HEAD
 
-  // Interface web (page unique). Le dossier public/ est copié tel quel dans l'image Docker.
+  // Interface web
   const publicDir = path.join(process.cwd(), 'public');
   app.use(express.static(publicDir));
   app.get('/', (_req, res) => res.sendFile(path.join(publicDir, 'index.html')));
-
-=======
-  app.use(express.static(path.join(process.cwd(), 'public')));  
-  const publicDir = path.join(process.cwd(), 'public');
-  app.use(express.static(publicDir));
-  app.get('/', (_req, res) => res.sendFile(path.join(publicDir, 'index.html')));
->>>>>>> 24f9b4eb547c871a340585b08d1b54778a7af3d1
+  
+  // Gestion des routes inconnues et des erreurs
   app.use(notFoundHandler);
   app.use(errorHandler);
+
   return app;
 }
+

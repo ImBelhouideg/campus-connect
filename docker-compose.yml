@@ -1,8 +1,7 @@
-<<<<<<< HEAD
-# Développement (base seule) : docker compose up -d        (npm run db:up)
+
+# Développement (base seule) : docker compose up -d
 # Démo complète (app + base) : docker compose --profile full up --build
-=======
->>>>>>> 24f9b4eb547c871a340585b08d1b54778a7af3d1
+
 services:
   db:
     image: postgres:16
@@ -14,7 +13,6 @@ services:
       - "5432:5432"
     volumes:
       - campus_pg:/var/lib/postgresql/data
-<<<<<<< HEAD
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U campus -d campus"]
       interval: 5s
@@ -39,16 +37,14 @@ services:
     build: .
     image: campus-incidents:local
     ports:
-      - "3000:3000"
+      - "3005:3005"
     environment:
       DATA_MODE: prisma
-      PORT: "3000"
+      PORT: "3005"
       DATABASE_URL: "postgresql://campus:campus@db:5432/campus?schema=public"
     depends_on:
       migrate:
         condition: service_completed_successfully
 
-=======
->>>>>>> 24f9b4eb547c871a340585b08d1b54778a7af3d1
 volumes:
   campus_pg:
